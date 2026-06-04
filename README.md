@@ -1,119 +1,97 @@
 # Auto Theme Switcher for GNOME
 
-## Description
-Auto Theme Switcher is a bash script that automatically switches between light and dark themes in GNOME desktop environment based on user-defined time schedules. It provides a seamless transition between themes and supports custom GTK themes and icon sets.
+Auto Theme Switcher switches GNOME between light and dark mode using your local sunrise and sunset times.
 
-## Features
-- Automatic switching between light and dark themes at specified times
-- Automatic theme adjustment after boot or system resume from sleep
+It is just a small Python script, not a background daemon. A `systemd --user` timer runs it every 10 minutes, and a GNOME autostart entry runs it once after graphical login.
 
-## Prerequisites
-- GNOME Desktop Environment
-- `gsettings` (usually pre-installed with GNOME)
-- `dbus-monitor` (usually pre-installed with GNOME)
+## Requirements
 
-## Installation
+- GNOME
+- Python 3
+- `gsettings`
+- `systemd --user`
+- Internet access at least once a day to refresh sunrise and sunset data
 
-1. Create a bin directory in your home folder if it doesn't exist:
+## Install
 
-`mkdir -p ~/bin`
+From the project directory, run:
 
-2. Download the script:
+```bash
+./install.sh
+````
 
-`wget -O ~/bin/auto_theme_switcher.sh https://raw.githubusercontent.com/glaicer/auto_theme_switcher/main/auto_theme_switcher.sh`
+This creates:
 
-3. Make the script executable:
+- `~/.config/systemd/user/auto-theme-switcher.service`
+- `~/.config/systemd/user/auto-theme-switcher.timer`
+- `~/.config/autostart/auto-theme-switcher.desktop`
 
-`chmod +x ~/bin/auto_theme_switcher.sh`
+To check that it is installed and running:
 
-4. Edit the script to set your preferred times and themes:
+```bash
+systemctl --user status auto-theme-switcher.timer
+systemctl --user start auto-theme-switcher.service
+journalctl --user -u auto-theme-switcher.service -n 50
+```
 
-`nano ~/bin/auto_theme_switcher.sh`
+To uninstall:
 
-5. (Optional) You may want to set different wallpapers for light and dark themes. This could be done with:
+```bash
+./uninstall.sh
+```
 
-`gsettings set org.gnome.desktop.background picture-uri '/path/to/light/wallpaper.png'`
+## How it works
 
-`gsettings set org.gnome.desktop.background picture-uri-dark '/path/to/dark/wallpaper.png'`
+On each run, `auto_theme_switcher.py`:
+
+1. Gets your latitude and longitude.
+2. Fetches today's sunrise and sunset from `sunrise-sunset.org`.
+3. Caches the result in `~/.cache/auto-theme-switcher/sun.json`.
+4. Uses `prefer-light` between sunrise and sunset.
+5. Uses `prefer-dark` outside daylight hours.
+6. Changes the GTK and icon themes only when the current value is different.
+
+By default, the script gets your location from `https://ipwho.is/` and caches the returned latitude and longitude. If that lookup fails, it reuses the cached location.
+
+Sunrise and sunset data comes from `https://api.sunrise-sunset.org/json`. The API requires attribution for public use; this project uses it for personal desktop automation.
 
 ## Configuration
 
-### Time Settings
-Modify these variables to set your preferred switching times (24-hour format):
+You do not need a config file. Create `~/.config/auto-theme-switcher/config.json` only if you want to set your location manually or change the themes:
 
-`DAY_THEME_HOUR=6 # Hours to switch to light theme (do not start with zero)`
-
-`DAY_THEME_MINUTE=0 # Minutes for light theme switch`
-
-`NIGHT_THEME_HOUR=17 # Hours to switch to dark theme (do not start with zero)`
-
-`NIGHT_THEME_MINUTE=30 # Minutes for dark theme switch`
-
-### Theme Settings
-Set your preferred themes (must be installed on your system):
-
-`LIGHT_GTK_THEME="Yaru" # Your preferred light GTK theme` 
-
-`LIGHT_ICON_THEME="Yaru" # Your preferred light icon theme`
-
-`LIGHT_COLOR_SCHEME="prefer-light"`
-
-`DARK_GTK_THEME="Yaru-dark" # Your preferred dark GTK theme`
-
-`DARK_ICON_THEME="Yaru-dark" # Your preferred dark icon theme`
-
-`DARK_COLOR_SCHEME="prefer-dark"`
-
-## Autostart Setup
-
-To make the script run automatically at startup:
-1. Create a **.desktop** file:
-   
-`nano ~/.config/autostart/auto_theme_switcher.desktop`
-
-2. Add the following content:
-   
-```
-[Desktop Entry]
-Type=Application
-Name=Auto Theme Switcher
-Exec=/home/YOUR_USERNAME/bin/auto_theme_switcher.sh
-NoDisplay=true
-X-GNOME-Autostart-enabled=true
+```json
+{
+  "location": {
+    "lat": 50.45,
+    "lng": 30.52
+  },
+  "themes": {
+    "light": {
+      "color-scheme": "prefer-light",
+      "gtk-theme": "Yaru",
+      "icon-theme": "Yaru"
+    },
+    "dark": {
+      "color-scheme": "prefer-dark",
+      "gtk-theme": "Yaru-dark",
+      "icon-theme": "Yaru-dark"
+    }
+  }
+}
 ```
 
-## Usage
+If you set `location.lat` and `location.lng`, the script skips IP-based location lookup.
 
-The script will run in the background and automatically switch themes based on the configured times. You can:
+## Manual usage
 
-- Run it manually:
-  
-`~/bin/auto_theme_switcher.sh`
+Print the theme that would be selected:
 
-- Check the error log:
-  
-`cat ~/bin/auto_theme_switcher_errors.log`
+```bash
+./auto_theme_switcher.py --print-only
+```
 
-## Troubleshooting
+Apply the selected theme once:
 
-1. If themes don't switch:
-   - Verify that the specified themes are installed
-   - Check the error log file
-   - Ensure the script has execution permissions
-
-2. If the script doesn't start automatically:
-   - Check the autostart **.desktop** file permissions
-   - Verify the path in the **.desktop** file
-   - Check system logs for potential errors
-
-## Error Logging
-The script logs errors to:
-`~/bin/auto_theme_switcher_errors.log`
-
-## License
-This project is licensed under the MIT License.
-
-## Acknowledgments
-- GNOME Desktop Environment
-- GTK Theme developers
-- Icon Theme developers
+```bash
+./auto_theme_switcher.py
+```
